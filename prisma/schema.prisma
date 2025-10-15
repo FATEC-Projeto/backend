@@ -7,7 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* ---------- ENUMS (PT-BR, sem acentos) ---------- */
+/**
+ * ---------- ENUMS (PT-BR, sem acentos) ----------
+ */
 enum Papel {
   USUARIO
   BACKOFFICE
@@ -36,27 +38,29 @@ enum PrioridadeChamado {
   URGENTE
 }
 
-/* ---------- ORGANIZAÇÃO / SETORES / PAPÉIS POR SETOR / CATÁLOGO ---------- */
+/**
+ * ---------- ORGANIZAÇÃO / SETORES / PAPÉIS POR SETOR / CATÁLOGO ----------
+ */
 model Organizacao {
-  id          String   @id @default(cuid())
-  nome        String
-  sigla       String?
-  criadoEm    DateTime @default(now())
+  id       String   @id @default(cuid())
+  nome     String
+  sigla    String?
+  criadoEm DateTime @default(now())
 
-  usuarios    Usuario[]
-  setores     Setor[]
-  categorias  Categoria[]
-  chamados    Chamado[]
+  usuarios   Usuario[]
+  setores    Setor[]
+  categorias Categoria[]
+  chamados   Chamado[]
 
   @@map("organizacoes")
 }
 
 model Setor {
-  id             String       @id @default(cuid())
-  organizacaoId  String?
-  nome           String
-  descricao      String?
-  organizacao    Organizacao? @relation(fields: [organizacaoId], references: [id])
+  id            String       @id @default(cuid())
+  organizacaoId String?
+  nome          String
+  descricao     String?
+  organizacao   Organizacao? @relation(fields: [organizacaoId], references: [id])
 
   usuarioSetores UsuarioSetor[]
   chamados       Chamado[]
@@ -66,9 +70,9 @@ model Setor {
 }
 
 model PapelCatalogo {
-  id          String        @id @default(cuid())
-  nome        String        @unique
-  descricao   String?
+  id        String  @id @default(cuid())
+  nome      String  @unique
+  descricao String?
 
   usuarioSetores UsuarioSetor[]
 
@@ -76,15 +80,15 @@ model PapelCatalogo {
 }
 
 model UsuarioSetor {
-  id         String        @id @default(cuid())
-  usuarioId  String
-  setorId    String
-  papelId    String?
-  criadoEm   DateTime      @default(now())
+  id        String   @id @default(cuid())
+  usuarioId String
+  setorId   String
+  papelId   String?
+  criadoEm  DateTime @default(now())
 
-  usuario    Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  setor      Setor         @relation(fields: [setorId], references: [id], onDelete: Cascade)
-  papel      PapelCatalogo? @relation(fields: [papelId], references: [id])
+  usuario Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  setor   Setor          @relation(fields: [setorId], references: [id], onDelete: Cascade)
+  papel   PapelCatalogo? @relation(fields: [papelId], references: [id])
 
   @@unique([usuarioId, setorId, papelId])
   @@index([setorId])
@@ -92,59 +96,61 @@ model UsuarioSetor {
 }
 
 model Categoria {
-  id             String       @id @default(cuid())
-  organizacaoId  String?
-  nome           String
-  descricao      String?
-  organizacao    Organizacao? @relation(fields: [organizacaoId], references: [id])
+  id            String       @id @default(cuid())
+  organizacaoId String?
+  nome          String
+  descricao     String?
+  organizacao   Organizacao? @relation(fields: [organizacaoId], references: [id])
 
-  servicos       Servico[]
+  servicos Servico[]
 
   @@index([organizacaoId])
   @@map("categorias")
 }
 
 model Servico {
-  id          String   @id @default(cuid())
-  categoriaId String?
+  id          String     @id @default(cuid())
+  categoriaId String? // <- opcional
   nome        String
   descricao   String?
-  ativo       Boolean  @default(true)
-  categoria   Categoria @relation(fields: [categoriaId], references: [id])
+  ativo       Boolean    @default(true)
+  categoria   Categoria? @relation(fields: [categoriaId], references: [id]) // <- opcional
 
-  chamados    Chamado[]
+  chamados Chamado[]
 
   @@index([categoriaId])
   @@map("servicos")
 }
 
-/* ---------- USUÁRIOS & SESSÕES ---------- */
+/**
+ * ---------- USUÁRIOS & SESSÕES ----------
+ */
 model Usuario {
-  id                String    @id @default(cuid())
-  organizacaoId     String?
-  nome              String
-  emailPessoal      String    @unique
-  emailEducacional  String?
-  ra                String?   @db.VarChar(32)
-  senhaHash         String
-  papel             Papel     @default(USUARIO) // papel global
-  ativo             Boolean   @default(true)
-  anonimizado       Boolean   @default(false)
-  criadoEm          DateTime  @default(now())
-  atualizadoEm      DateTime  @updatedAt
-  deletadoEm        DateTime?
+  id               String    @id @default(cuid())
+  organizacaoId    String?
+  nome             String
+  emailPessoal     String    @unique
+  emailEducacional String?
+  ra               String?   @db.VarChar(32)
+  senhaHash        String
+  papel            Papel     @default(USUARIO) // papel global
+  ativo            Boolean   @default(true)
+  anonimizado      Boolean   @default(false)
+  criadoEm         DateTime  @default(now())
+  atualizadoEm     DateTime  @updatedAt
+  deletadoEm       DateTime?
 
-  organizacao       Organizacao? @relation(fields: [organizacaoId], references: [id])
+  organizacao Organizacao? @relation(fields: [organizacaoId], references: [id])
 
-  chamadosCriados   Chamado[]  @relation("ChamadosCriados")
-  chamadosAtribuidos Chamado[] @relation("ChamadosAtribuidos")
-  anexos            Anexo[]
-  auditorias        Auditoria[]
-  mensagens         Mensagem[]
-  mudancasStatus    HistoricoStatusChamado[] @relation("StatusPorUsuario")
-  sessoes           Sessao[]
-  tokensReset       TokenResetSenha[]  @relation("TokensDeUsuario")
-  usuarioSetores    UsuarioSetor[]
+  chamadosCriados    Chamado[]                @relation("ChamadosCriados")
+  chamadosAtribuidos Chamado[]                @relation("ChamadosAtribuidos")
+  anexos             Anexo[]
+  auditorias         Auditoria[]
+  mensagens          Mensagem[]
+  mudancasStatus     HistoricoStatusChamado[] @relation("StatusPorUsuario")
+  sessoes            Sessao[]
+  tokensReset        TokenResetSenha[]        @relation("TokensDeUsuario")
+  usuarioSetores     UsuarioSetor[]
 
   @@index([emailPessoal])
   @@index([organizacaoId])
@@ -167,33 +173,35 @@ model Sessao {
 }
 
 model TokenResetSenha {
-  id         String   @id @default(cuid())
-  usuarioId  String
-  tokenHash  String
-  expiraEm   DateTime
-  usadoEm    DateTime?
-  criadoEm   DateTime @default(now())
-  usuario    Usuario  @relation("TokensDeUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+  id        String    @id @default(cuid())
+  usuarioId String
+  tokenHash String
+  expiraEm  DateTime
+  usadoEm   DateTime?
+  criadoEm  DateTime  @default(now())
+  usuario   Usuario   @relation("TokensDeUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@index([usuarioId])
   @@index([expiraEm])
   @@map("tokens_reset_senha")
 }
 
-/* ---------- CLIENTES & CONTRATOS (Backoffice) ---------- */
+/**
+ * ---------- CLIENTES & CONTRATOS (Backoffice) ----------
+ */
 model Cliente {
-  id          String    @id @default(cuid())
-  nome        String
-  cpf         String?   @unique @db.VarChar(14)
-  email       String?
-  telefone    String?   @db.VarChar(20)
-  idExterno   String?   @unique
-  criadoEm    DateTime  @default(now())
-  atualizadoEm DateTime @updatedAt
-  deletadoEm  DateTime?
+  id           String    @id @default(cuid())
+  nome         String
+  cpf          String?   @unique @db.VarChar(14)
+  email        String?
+  telefone     String?   @db.VarChar(20)
+  idExterno    String?   @unique
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm   DateTime?
 
-  contratos   Contrato[]
-  chamados    Chamado[]
+  contratos Contrato[]
+  chamados  Chamado[]
 
   @@index([nome])
   @@index([cpf])
@@ -213,50 +221,52 @@ model Contrato {
   deletadoEm   DateTime?
   cliente      Cliente   @relation(fields: [clienteId], references: [id])
 
-  chamados     Chamado[] @relation("ChamadosDoContrato")
+  chamados Chamado[] @relation("ChamadosDoContrato")
 
   @@unique([clienteId, numero])
   @@index([clienteId])
   @@map("contratos")
 }
 
-/* ---------- CHAMADOS ---------- */
+/**
+ * ---------- CHAMADOS ----------
+ */
 model Chamado {
-  id             String              @id @default(cuid())
-  organizacaoId  String?
-  protocolo      String?             @unique
-  titulo         String
-  descricao      String
-  nivel          NivelChamado        @default(N1)
-  status         StatusChamado       @default(ABERTO)
-  prioridade     PrioridadeChamado   @default(MEDIA)
+  id            String            @id @default(cuid())
+  organizacaoId String?
+  protocolo     String?           @unique
+  titulo        String
+  descricao     String
+  nivel         NivelChamado      @default(N1)
+  status        StatusChamado     @default(ABERTO)
+  prioridade    PrioridadeChamado @default(MEDIA)
 
-  servicoId      String?
-  setorId        String?
+  servicoId String?
+  setorId   String?
 
-  clienteId      String?
-  contratoId     String?
+  clienteId  String?
+  contratoId String?
 
-  responsavelId  String?
-  criadoPorId    String
+  responsavelId String?
+  criadoPorId   String
 
-  criadoEm       DateTime            @default(now())
-  atualizadoEm   DateTime            @updatedAt
-  encerradoEm    DateTime?
-  deletadoEm     DateTime?
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  encerradoEm  DateTime?
+  deletadoEm   DateTime?
 
-  organizacao    Organizacao?        @relation(fields: [organizacaoId], references: [id])
-  servico        Servico?            @relation(fields: [servicoId], references: [id])
-  setor          Setor?              @relation(fields: [setorId], references: [id])
-  cliente        Cliente?            @relation(fields: [clienteId], references: [id])
-  contrato       Contrato?           @relation("ChamadosDoContrato", fields: [contratoId], references: [id])
-  responsavel    Usuario?            @relation("ChamadosAtribuidos", fields: [responsavelId], references: [id])
-  criadoPor      Usuario             @relation("ChamadosCriados", fields: [criadoPorId], references: [id])
+  organizacao Organizacao? @relation(fields: [organizacaoId], references: [id])
+  servico     Servico?     @relation(fields: [servicoId], references: [id])
+  setor       Setor?       @relation(fields: [setorId], references: [id])
+  cliente     Cliente?     @relation(fields: [clienteId], references: [id])
+  contrato    Contrato?    @relation("ChamadosDoContrato", fields: [contratoId], references: [id])
+  responsavel Usuario?     @relation("ChamadosAtribuidos", fields: [responsavelId], references: [id])
+  criadoPor   Usuario      @relation("ChamadosCriados", fields: [criadoPorId], references: [id])
 
-  anexos         Anexo[]
-  historico      HistoricoStatusChamado[]
-  mensagens      Mensagem[]
-  tags           ChamadoTag[]
+  anexos    Anexo[]
+  historico HistoricoStatusChamado[]
+  mensagens Mensagem[]
+  tags      ChamadoTag[]
 
   @@index([status, nivel])
   @@index([criadoEm])
@@ -268,15 +278,15 @@ model Chamado {
 }
 
 model HistoricoStatusChamado {
-  id          String         @id @default(cuid())
-  chamadoId   String
-  de          StatusChamado?
-  para        StatusChamado
+  id           String         @id @default(cuid())
+  chamadoId    String
+  de           StatusChamado?
+  para         StatusChamado
   porUsuarioId String?
-  observacao  String?
-  criadoEm    DateTime       @default(now())
-  chamado     Chamado        @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
-  porUsuario  Usuario?       @relation("StatusPorUsuario", fields: [porUsuarioId], references: [id])
+  observacao   String?
+  criadoEm     DateTime       @default(now())
+  chamado      Chamado        @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
+  porUsuario   Usuario?       @relation("StatusPorUsuario", fields: [porUsuarioId], references: [id])
 
   @@index([chamadoId])
   @@index([criadoEm])
@@ -284,43 +294,45 @@ model HistoricoStatusChamado {
 }
 
 model Mensagem {
-  id         String   @id @default(cuid())
-  chamadoId  String
-  autorId    String
-  conteudo   String
-  criadoEm   DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
-  deletadoEm DateTime?
-  chamado    Chamado  @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
-  autor      Usuario  @relation(fields: [autorId], references: [id])
+  id           String    @id @default(cuid())
+  chamadoId    String
+  autorId      String
+  conteudo     String
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm   DateTime?
+  chamado      Chamado   @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
+  autor        Usuario   @relation(fields: [autorId], references: [id])
 
   @@index([chamadoId])
   @@map("mensagens")
 }
 
 model Anexo {
-  id            String   @id @default(cuid())
-  chamadoId     String
-  nomeArquivo   String
-  mimeType      String
-  tamanhoBytes  Int
+  id             String   @id @default(cuid())
+  chamadoId      String
+  nomeArquivo    String
+  mimeType       String
+  tamanhoBytes   Int
   caminhoArquivo String
-  enviadoPorId  String
-  enviadoEm     DateTime @default(now())
-  chamado       Chamado  @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
-  enviadoPor    Usuario  @relation(fields: [enviadoPorId], references: [id])
+  enviadoPorId   String
+  enviadoEm      DateTime @default(now())
+  chamado        Chamado  @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
+  enviadoPor     Usuario  @relation(fields: [enviadoPorId], references: [id])
 
   @@index([chamadoId])
   @@map("anexos")
 }
 
-/* ---------- TAGS ---------- */
+/**
+ * ---------- TAGS ----------
+ */
 model Tag {
-  id        String      @id @default(cuid())
-  nome      String      @unique
-  cor       String?     @db.VarChar(16)
-  criadoEm  DateTime    @default(now())
-  chamados  ChamadoTag[]
+  id       String       @id @default(cuid())
+  nome     String       @unique
+  cor      String?      @db.VarChar(16)
+  criadoEm DateTime     @default(now())
+  chamados ChamadoTag[]
 
   @@map("tags")
 }
@@ -336,7 +348,9 @@ model ChamadoTag {
   @@map("chamados_tags")
 }
 
-/* ---------- AUDITORIA & E-MAILS ---------- */
+/**
+ * ---------- AUDITORIA & E-MAILS ----------
+ */
 model Auditoria {
   id         String   @id @default(cuid())
   feitoPorId String?
@@ -351,15 +365,15 @@ model Auditoria {
 }
 
 model EmailEnvio {
-  id             String   @id @default(cuid())
-  destinatario   String
-  assunto        String
-  payload        Json
-  providerMsgId  String?
-  status         String   @default("pendente")
-  erro           String?
-  criadoEm       DateTime @default(now())
-  enviadoEm      DateTime?
+  id            String    @id @default(cuid())
+  destinatario  String
+  assunto       String
+  payload       Json
+  providerMsgId String?
+  status        String    @default("pendente")
+  erro          String?
+  criadoEm      DateTime  @default(now())
+  enviadoEm     DateTime?
 
   @@index([status])
   @@map("email_envios")

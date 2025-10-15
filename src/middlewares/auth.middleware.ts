@@ -1,19 +1,32 @@
-import { FastifyRequest, FastifyReply } from "fastify";
-import { verifyAccessToken } from "../utils/jwt";  
+// src/middlewares/auth.middleware.ts
+import { FastifyReply, FastifyRequest } from "fastify";
+import { verifyAccessToken } from "../utils/jwt";
 
-export const authenticate = async (req: FastifyRequest, reply: FastifyReply) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(" ")[1];  
+declare module "fastify" {
+  interface FastifyRequest {
+    user?: {
+      sub: string;
+      email: string;
+      role: string;
+    };
+  }
+}
 
+export async function authenticate(req: FastifyRequest, res: FastifyReply) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) {
+    return res.code(401).send({ error: "Token ausente" });
+  }
+
+  const token = header.slice("Bearer ".length).trim();
   if (!token) {
-    return reply.status(401).send({ error: "Token não fornecido" });
+    return res.code(401).send({ error: "Token inválido" });
   }
 
   try {
-    // Verificando o token e atribuindo as informações do usuário ao `req.user`
-    const decoded = verifyAccessToken(token);
-    req.user = decoded;  
-  } catch (error) {
-    return reply.status(401).send({ error: "Token inválido ou expirado" });
+    const payload = verifyAccessToken(token); // { sub, email, role }
+    req.user = payload;
+  } catch (err: any) {
+    return res.code(401).send({ error: "Não autorizado", details: err?.message });
   }
-};
+}

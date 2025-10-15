@@ -1,1 +1,54 @@
-{"name":"workflow-fatec-backend","version":"1.0.0","description":"Backend do Workflow Fatec — Fastify + Prisma + JWT + Resend","type":"module","main":"dist/server.js","scripts":{"dev":"tsx watch src/server.ts","build":"tsc -p .","start":"node dist/server.js","lint":"eslint .","typecheck":"tsc -p . --noEmit","test":"vitest run","test:watch":"vitest","prisma:generate":"prisma generate","prisma:push":"prisma db push","prisma:migrate":"prisma migrate dev","prisma:studio":"prisma studio"},"lint-staged":{"*.{ts,tsx}":["eslint --fix","vitest related --run","git add"]},"dependencies":{"@fastify/cors":"^10.0.1","@fastify/helmet":"^13.0.0","@fastify/rate-limit":"^10.0.0","@prisma/client":"^6.0.0","bcrypt":"^5.1.1","fastify":"^5.0.0","fastify-plugin":"^5.1.0","jsonwebtoken":"^9.0.2","zod":"^3.23.8"},"devDependencies":{"@types/bcrypt":"^5.0.2","@types/jsonwebtoken":"^9.0.6","@types/node":"^22.7.0","@typescript-eslint/eslint-plugin":"^8.10.0","@typescript-eslint/parser":"^8.10.0","cross-env":"^7.0.3","eslint":"^9.10.0","eslint-plugin-import":"^2.29.1","eslint-plugin-unused-imports":"^4.0.0","husky":"^9.0.11","lint-staged":"^15.2.0","prettier":"^3.3.3","prisma":"^6.0.0","supertest":"^7.1.1","tsx":"^4.19.2","typescript":"^5.9.3","vitest":"^2.1.0"}}
+{
+  "name": "workflow-fatec-backend",
+  "version": "1.0.0",
+  "description": "Backend do Workflow Fatec — Fastify + Prisma + JWT + Resend",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p .",
+    "start": "node dist/server.js",
+    "lint": "eslint .",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@fastify/helmet": "^13.0.0",
+    "@fastify/rate-limit": "^10.0.0",
+    "@prisma/client": "^6.17.1",
+    "bcrypt": "^5.1.1",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^22.7.0",
+    "@typescript-eslint/eslint-plugin": "^8.10.0",
+    "@typescript-eslint/parser": "^8.10.0",
+    "cross-env": "^7.0.3",
+    "eslint": "^9.10.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-unused-imports": "^4.0.0",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.3.3",
+    "prisma": "^6.17.1",
+    "supertest": "^7.1.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.0"
+  }
+}

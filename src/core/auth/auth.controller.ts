@@ -1,167 +1,168 @@
-import { FastifyRequest, FastifyReply } from "fastify";
-import bcrypt from "bcrypt";  
-import { PrismaClient } from "@prisma/client";  
-import { loginService, refreshService, logoutService, meService } from "./auth.service";  
-import { generateAccessToken, generateRefreshToken } from "../../utils/jwt"; 
+// src/modules/auth/auth.controller.ts
+import { FastifyRequest, FastifyReply, RouteHandler, RouteGenericInterface } from "fastify";
+import bcrypt from "bcrypt";
+import { PrismaClient, Papel } from "@prisma/client";
+import { loginService, refreshService, logoutService, meService } from "./auth.service";
+import { generateAccessToken, generateRefreshToken } from "../../utils/jwt";
 
 const prisma = new PrismaClient();
 
-// Definir as interfaces para os corpos das requisições
-interface LoginRequestBody {
-  email: string;
+/** Tipos dos corpos das requisições */
+type LoginRequestBody = {
+  email: string;     // email pessoal
   password: string;
-}
+};
 
-interface RefreshRequestBody {
+type RefreshRequestBody = {
   refreshToken: string;
-}
+};
 
-interface RegisterRequestBody {
-  email: string;
+type RegisterRequestBody = {
+  email: string;               // email pessoal
   password: string;
-  role?: string;
-  name: string;
-  educationalEmail?: string;
+  role?: string;               // USUARIO | BACKOFFICE | TECNICO | ADMINISTRADOR
+  name: string;                // nome
+  educationalEmail?: string;   // email educacional
   ra?: string;
+};
+
+/** Tipos da rota GET /usuarios */
+type GetUserQuery = {
+  ra?: string;
+  email?: string; // email pessoal
+  id?: string;
+  name?: string;
+  educationalEmail?: string;
+};
+interface GetUserRoute extends RouteGenericInterface {
+  Querystring: GetUserQuery;
 }
 
-interface MeRequest {
-  user: {
-    sub: string;
-    email: string;
-    role: string;
-  };
+/** Helper: normaliza string -> enum Papel (fallback USUARIO) */
+function parsePapel(input?: string): Papel {
+  if (!input) return Papel.USUARIO;
+  const norm = input.toUpperCase().replace(/\s+/g, "_");
+  return (Papel as any)[norm] ?? Papel.USUARIO;
 }
 
-// Função para login
-export const login = async (req: FastifyRequest<{ Body: LoginRequestBody }>, res: FastifyReply) => {
+/** LOGIN */
+export const login: RouteHandler<{ Body: LoginRequestBody }> = async (req, res) => {
   const { email, password } = req.body;
+
   try {
-    const { accessToken, refreshToken, user } = await loginService(email, password);
+    const { accessToken, refreshToken, user } = await loginService(email, password, {
+      ip: req.ip,
+      userAgent: (req.headers["user-agent"] as string) || undefined,
+    });
     return res.send({ user, accessToken, refreshToken });
-  } catch (error) {
-    if (error instanceof Error) {
-      return res.status(500).send({ error: error.message || "Erro interno" });
-    }
-    return res.status(500).send({ error: "Erro desconhecido" });
+  } catch (error: any) {
+    return res.code(500).send({ error: error?.message || "Erro interno" });
   }
 };
 
-export const refresh = async (req: FastifyRequest<{ Body: RefreshRequestBody }>, res: FastifyReply) => {
+/** REFRESH */
+export const refresh: RouteHandler<{ Body: RefreshRequestBody }> = async (req, res) => {
   const { refreshToken } = req.body;
+
   try {
     const { accessToken } = await refreshService(refreshToken);
     return res.send({ accessToken });
-  } catch (error) {
-    if (error instanceof Error) {
-      return res.status(500).send({ error: error.message || "Erro interno" });
-    }
-    return res.status(500).send({ error: "Erro desconhecido" });
+  } catch (error: any) {
+    return res.code(500).send({ error: error?.message || "Erro interno" });
   }
 };
 
-// Função para logout
-export const logout = async (req: FastifyRequest<{ Body: RefreshRequestBody }>, res: FastifyReply) => {
+/** LOGOUT */
+export const logout: RouteHandler<{ Body: RefreshRequestBody }> = async (req, res) => {
   const { refreshToken } = req.body;
+
   try {
     await logoutService(refreshToken);
     return res.send({ message: "Logout realizado com sucesso" });
-  } catch (error) {
-    if (error instanceof Error) {
-      return res.status(500).send({ error: error.message || "Erro interno" });
-    }
-    return res.status(500).send({ error: "Erro desconhecido" });
+  } catch (error: any) {
+    return res.code(500).send({ error: error?.message || "Erro interno" });
   }
 };
 
-// Função para obter os dados do usuário
-export const me = async (req: FastifyRequest, res: FastifyReply) => {
-  const user = req.user;  // `user` já foi adicionado pelo middleware
+/** ME (dados do usuário autenticado) */
+export const me: RouteHandler = async (req, res) => {
+  // `req.user` depende do middleware; guard para TS
+  const authUser = (req as any).user as { sub?: string } | undefined;
+
+  if (!authUser?.sub) {
+    return res.code(401).send({ error: "Não autenticado" });
+  }
+
   try {
-    const userData = await meService(user?.sub);  // Usando o ID do usuário para buscar dados
+    const userData = await meService(authUser.sub);
     return res.send(userData);
-  } catch (error) {
-    if (error instanceof Error) {
-      return res.status(500).send({ error: error.message || "Erro interno" });
-    }
-    return res.status(500).send({ error: "Erro desconhecido" });
+  } catch (error: any) {
+    return res.code(500).send({ error: error?.message || "Erro interno" });
   }
 };
 
-// Função para cadastrar um novo usuário
-export const register = async (req: FastifyRequest<{ Body: RegisterRequestBody }>, res: FastifyReply) => {
+/** REGISTER */
+export const register: RouteHandler<{ Body: RegisterRequestBody }> = async (req, res) => {
   const { email, password, role, name, educationalEmail, ra } = req.body;
 
-  // Verificar se o email já está registrado
-  const existingUser = await prisma.user.findUnique({
-    where: { email }
+  // já existe esse email pessoal?
+  const existing = await prisma.usuario.findUnique({
+    where: { emailPessoal: email },
+    select: { id: true },
   });
+  if (existing) return res.code(400).send({ error: "Email já está em uso" });
 
-  if (existingUser) {
-    return res.status(400).send({ error: "Email já está em uso" });
-  }
-
-  // Criptografar a senha
-  const hashedPassword = await bcrypt.hash(password, 10);
+  // hash da senha
+  const senhaHash = await bcrypt.hash(password, 10);
+  const papel = parsePapel(role);
 
   try {
-    // Criar o novo usuário no banco de dados
-    const user = await prisma.user.create({
+    const user = await prisma.usuario.create({
       data: {
-        email,
-        passwordHash: hashedPassword,
-        role: role || "USER",  // Se não for passado, o role será "USER"
-        name,
-        educationalEmail,  
-        ra,  
+        nome: name,
+        emailPessoal: email,
+        emailEducacional: educationalEmail ?? null,
+        ra: ra ?? null,
+        senhaHash,
+        papel,
+        ativo: true,
       },
     });
 
-    console.log("Usuário criado com sucesso:", user);
-
-    // Gerar os tokens de acesso e refresh
+    // tokens
     const accessToken = generateAccessToken({
       sub: user.id,
-      email: user.email,
-      role: user.role,
+      email: user.emailPessoal ?? "", // seu verifyAccessToken tipa como string
+      role: user.papel,
     });
-
     const refreshToken = generateRefreshToken({ sub: user.id });
 
     return res.send({ user, accessToken, refreshToken });
-  } catch (error) {
-    console.error("Erro ao criar o usuário:", error);
-    return res.status(500).send({ error: "Erro ao criar o usuário", details: error.message });
+  } catch (error: any) {
+    return res
+      .code(500)
+      .send({ error: "Erro ao criar o usuário", details: error?.message });
   }
 };
 
-export const getUser = async (req: FastifyRequest<{ Querystring: { ra?: string, email?: string, id?: string, name?: string, educationalEmail?: string } }>, res: FastifyReply) => {
+/** GET /usuarios (protegida) */
+export const getUser: RouteHandler<GetUserRoute> = async (req, res) => {
   const { ra, email, id, name, educationalEmail } = req.query;
 
-  // Preparar o filtro para a consulta
-  const filter: any = {};
-
-  if (ra) filter.ra = ra;
-  if (email) filter.email = email;
-  if (id) filter.id = id;
-  if (name) filter.name = { contains: name };  // Busca pelo nome 
-  if (educationalEmail) filter.educationalEmail = educationalEmail;
+  const where: any = {};
+  if (id) where.id = id;
+  if (ra) where.ra = ra;
+  if (email) where.emailPessoal = email;
+  if (educationalEmail) where.emailEducacional = educationalEmail;
+  if (name) where.nome = { contains: name, mode: "insensitive" as const };
 
   try {
-    // Consultar o usuário com base no filtro fornecido
-    const user = await prisma.user.findMany({
-      where: filter,
-    });
-
-    if (user.length === 0) {
-      return res.status(404).send({ error: "Usuário não encontrado" });
+    const users = await prisma.usuario.findMany({ where });
+    if (!users.length) {
+      return res.code(404).send({ error: "Usuário não encontrado" });
     }
-
-    return res.send(user);
-  } catch (error) {
-    if (error instanceof Error) {
-      return res.status(500).send({ error: error.message || "Erro interno" });
-    }
-    return res.status(500).send({ error: "Erro desconhecido" });
+    return res.send(users);
+  } catch (error: any) {
+    return res.code(500).send({ error: error?.message || "Erro interno" });
   }
 };
