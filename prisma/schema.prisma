@@ -7,246 +7,360 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* ---------- ENUMS ---------- */
-enum Role {
-  USER
+/* ---------- ENUMS (PT-BR, sem acentos) ---------- */
+enum Papel {
+  USUARIO
   BACKOFFICE
-  TECH
-  ADMIN
+  TECNICO
+  ADMINISTRADOR
 }
 
-enum TicketLevel {
+enum NivelChamado {
   N1
   N2
   N3
 }
 
-enum TicketStatus {
-  OPEN
-  IN_PROGRESS
-  WAITING_CUSTOMER
-  RESOLVED
-  CLOSED
+enum StatusChamado {
+  ABERTO
+  EM_ATENDIMENTO
+  AGUARDANDO_USUARIO
+  RESOLVIDO
+  ENCERRADO
 }
 
-enum TicketPriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
+enum PrioridadeChamado {
+  BAIXA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+/* ---------- ORGANIZAÇÃO / SETORES / PAPÉIS POR SETOR / CATÁLOGO ---------- */
+model Organizacao {
+  id          String   @id @default(cuid())
+  nome        String
+  sigla       String?
+  criadoEm    DateTime @default(now())
+
+  usuarios    Usuario[]
+  setores     Setor[]
+  categorias  Categoria[]
+  chamados    Chamado[]
+
+  @@map("organizacoes")
+}
+
+model Setor {
+  id             String       @id @default(cuid())
+  organizacaoId  String?
+  nome           String
+  descricao      String?
+  organizacao    Organizacao? @relation(fields: [organizacaoId], references: [id])
+
+  usuarioSetores UsuarioSetor[]
+  chamados       Chamado[]
+
+  @@index([organizacaoId])
+  @@map("setores")
+}
+
+model PapelCatalogo {
+  id          String        @id @default(cuid())
+  nome        String        @unique
+  descricao   String?
+
+  usuarioSetores UsuarioSetor[]
+
+  @@map("papeis")
+}
+
+model UsuarioSetor {
+  id         String        @id @default(cuid())
+  usuarioId  String
+  setorId    String
+  papelId    String?
+  criadoEm   DateTime      @default(now())
+
+  usuario    Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  setor      Setor         @relation(fields: [setorId], references: [id], onDelete: Cascade)
+  papel      PapelCatalogo? @relation(fields: [papelId], references: [id])
+
+  @@unique([usuarioId, setorId, papelId])
+  @@index([setorId])
+  @@map("usuarios_setores")
+}
+
+model Categoria {
+  id             String       @id @default(cuid())
+  organizacaoId  String?
+  nome           String
+  descricao      String?
+  organizacao    Organizacao? @relation(fields: [organizacaoId], references: [id])
+
+  servicos       Servico[]
+
+  @@index([organizacaoId])
+  @@map("categorias")
+}
+
+model Servico {
+  id          String   @id @default(cuid())
+  categoriaId String?
+  nome        String
+  descricao   String?
+  ativo       Boolean  @default(true)
+  categoria   Categoria @relation(fields: [categoriaId], references: [id])
+
+  chamados    Chamado[]
+
+  @@index([categoriaId])
+  @@map("servicos")
 }
 
 /* ---------- USUÁRIOS & SESSÕES ---------- */
-model User {
-  id               String    @id @default(cuid())
-  name             String
-  email            String    @unique
-  educationalEmail String?
-  ra               String?   @db.VarChar(32)
-  passwordHash     String
-  role             Role      @default(USER)
-  isActive         Boolean   @default(true)
-  isAnonymized     Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  deletedAt        DateTime?
+model Usuario {
+  id                String    @id @default(cuid())
+  organizacaoId     String?
+  nome              String
+  emailPessoal      String    @unique
+  emailEducacional  String?
+  ra                String?   @db.VarChar(32)
+  senhaHash         String
+  papel             Papel     @default(USUARIO) // papel global
+  ativo             Boolean   @default(true)
+  anonimizado       Boolean   @default(false)
+  criadoEm          DateTime  @default(now())
+  atualizadoEm      DateTime  @updatedAt
+  deletadoEm        DateTime?
 
-  createdTickets   Ticket[]  @relation("CreatedTickets")
-  assignedTickets  Ticket[]  @relation("AssignedTickets")
-  evidences        Evidence[]
-  logs             AuditLog[]
-  comments         TicketComment[]
-  statusChanges    TicketStatusHistory[] @relation("StatusByUser")
-  sessions         Session[]
-  resetTokens      PasswordResetToken[]  @relation("UserPasswordResetTokens")
+  organizacao       Organizacao? @relation(fields: [organizacaoId], references: [id])
 
-  @@index([email])
+  chamadosCriados   Chamado[]  @relation("ChamadosCriados")
+  chamadosAtribuidos Chamado[] @relation("ChamadosAtribuidos")
+  anexos            Anexo[]
+  auditorias        Auditoria[]
+  mensagens         Mensagem[]
+  mudancasStatus    HistoricoStatusChamado[] @relation("StatusPorUsuario")
+  sessoes           Sessao[]
+  tokensReset       TokenResetSenha[]  @relation("TokensDeUsuario")
+  usuarioSetores    UsuarioSetor[]
+
+  @@index([emailPessoal])
+  @@index([organizacaoId])
+  @@map("usuarios")
 }
 
-model Session {
-  id           String   @id @default(cuid())
-  userId       String
-  refreshHash  String
-  userAgent    String?
-  ip           String?  @db.VarChar(64)
-  expiresAt    DateTime
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Sessao {
+  id          String   @id @default(cuid())
+  usuarioId   String
+  refreshHash String
+  userAgent   String?
+  ip          String?  @db.VarChar(64)
+  expiraEm    DateTime
+  criadoEm    DateTime @default(now())
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([expiresAt])
+  @@index([usuarioId])
+  @@index([expiraEm])
+  @@map("sessoes")
 }
 
-model PasswordResetToken {
+model TokenResetSenha {
   id         String   @id @default(cuid())
-  userId     String
+  usuarioId  String
   tokenHash  String
-  expiresAt  DateTime
-  usedAt     DateTime?
-  createdAt  DateTime @default(now())
-  user       User     @relation("UserPasswordResetTokens", fields: [userId], references: [id], onDelete: Cascade)
+  expiraEm   DateTime
+  usadoEm    DateTime?
+  criadoEm   DateTime @default(now())
+  usuario    Usuario  @relation("TokensDeUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([expiresAt])
+  @@index([usuarioId])
+  @@index([expiraEm])
+  @@map("tokens_reset_senha")
 }
 
-/* ---------- CLIENTES & CONTRATOS ---------- */
-model Customer {
-  id             String    @id @default(cuid())
-  name           String
-  cpf            String?   @unique @db.VarChar(14)
-  email          String?
-  phone          String?   @db.VarChar(20)
-  externalId     String?   @unique
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  deletedAt      DateTime?
+/* ---------- CLIENTES & CONTRATOS (Backoffice) ---------- */
+model Cliente {
+  id          String    @id @default(cuid())
+  nome        String
+  cpf         String?   @unique @db.VarChar(14)
+  email       String?
+  telefone    String?   @db.VarChar(20)
+  idExterno   String?   @unique
+  criadoEm    DateTime  @default(now())
+  atualizadoEm DateTime @updatedAt
+  deletadoEm  DateTime?
 
-  contracts      Contract[]
-  tickets        Ticket[]
+  contratos   Contrato[]
+  chamados    Chamado[]
 
-  @@index([name])
+  @@index([nome])
   @@index([cpf])
+  @@map("clientes")
 }
 
-model Contract {
-  id            String    @id @default(cuid())
-  customerId    String
-  number        String    @db.VarChar(64)
-  plan          String?
-  startDate     DateTime?
-  endDate       DateTime?
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
-  customer      Customer  @relation(fields: [customerId], references: [id])
+model Contrato {
+  id           String    @id @default(cuid())
+  clienteId    String
+  numero       String    @db.VarChar(64)
+  plano        String?
+  dataInicio   DateTime?
+  dataFim      DateTime?
+  ativo        Boolean   @default(true)
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm   DateTime?
+  cliente      Cliente   @relation(fields: [clienteId], references: [id])
 
-  tickets       Ticket[]  @relation("ContractTickets")
+  chamados     Chamado[] @relation("ChamadosDoContrato")
 
-  @@unique([customerId, number])
-  @@index([customerId])
+  @@unique([clienteId, numero])
+  @@index([clienteId])
+  @@map("contratos")
 }
 
-/* ---------- TICKETS ---------- */
-model Ticket {
-  id             String         @id @default(cuid())
-  title          String
-  description    String
-  level          TicketLevel    @default(N1)
-  status         TicketStatus   @default(OPEN)
-  priority       TicketPriority @default(MEDIUM)
+/* ---------- CHAMADOS ---------- */
+model Chamado {
+  id             String              @id @default(cuid())
+  organizacaoId  String?
+  protocolo      String?             @unique
+  titulo         String
+  descricao      String
+  nivel          NivelChamado        @default(N1)
+  status         StatusChamado       @default(ABERTO)
+  prioridade     PrioridadeChamado   @default(MEDIA)
 
-  customerId     String?
-  contractId     String?
-  customer       Customer?      @relation(fields: [customerId], references: [id])
-  contract       Contract?      @relation("ContractTickets", fields: [contractId], references: [id])
+  servicoId      String?
+  setorId        String?
 
-  assignedToId   String?
-  assignedTo     User?          @relation("AssignedTickets", fields: [assignedToId], references: [id])
-  createdById    String
-  createdBy      User           @relation("CreatedTickets", fields: [createdById], references: [id])
+  clienteId      String?
+  contratoId     String?
 
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  deletedAt      DateTime?
+  responsavelId  String?
+  criadoPorId    String
 
-  evidences      Evidence[]
-  history        TicketStatusHistory[]
-  comments       TicketComment[]
-  tags           TicketTag[]
+  criadoEm       DateTime            @default(now())
+  atualizadoEm   DateTime            @updatedAt
+  encerradoEm    DateTime?
+  deletadoEm     DateTime?
 
-  @@index([status, level])
-  @@index([createdAt])
-  @@index([customerId])
+  organizacao    Organizacao?        @relation(fields: [organizacaoId], references: [id])
+  servico        Servico?            @relation(fields: [servicoId], references: [id])
+  setor          Setor?              @relation(fields: [setorId], references: [id])
+  cliente        Cliente?            @relation(fields: [clienteId], references: [id])
+  contrato       Contrato?           @relation("ChamadosDoContrato", fields: [contratoId], references: [id])
+  responsavel    Usuario?            @relation("ChamadosAtribuidos", fields: [responsavelId], references: [id])
+  criadoPor      Usuario             @relation("ChamadosCriados", fields: [criadoPorId], references: [id])
+
+  anexos         Anexo[]
+  historico      HistoricoStatusChamado[]
+  mensagens      Mensagem[]
+  tags           ChamadoTag[]
+
+  @@index([status, nivel])
+  @@index([criadoEm])
+  @@index([clienteId])
+  @@index([setorId])
+  @@index([servicoId])
+  @@index([organizacaoId])
+  @@map("chamados")
 }
 
-model TicketStatusHistory {
-  id        String       @id @default(cuid())
-  ticketId  String
-  from      TicketStatus?
-  to        TicketStatus
-  byUserId  String?
-  note      String?
-  createdAt DateTime     @default(now())
-  ticket    Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  byUser    User?        @relation("StatusByUser", fields: [byUserId], references: [id])
+model HistoricoStatusChamado {
+  id          String         @id @default(cuid())
+  chamadoId   String
+  de          StatusChamado?
+  para        StatusChamado
+  porUsuarioId String?
+  observacao  String?
+  criadoEm    DateTime       @default(now())
+  chamado     Chamado        @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
+  porUsuario  Usuario?       @relation("StatusPorUsuario", fields: [porUsuarioId], references: [id])
 
-  @@index([ticketId])
-  @@index([createdAt])
+  @@index([chamadoId])
+  @@index([criadoEm])
+  @@map("historico_status_chamado")
 }
 
-model TicketComment {
+model Mensagem {
   id         String   @id @default(cuid())
-  ticketId   String
-  authorId   String
-  body       String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  deletedAt  DateTime?
-  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  author     User     @relation(fields: [authorId], references: [id])
+  chamadoId  String
+  autorId    String
+  conteudo   String
+  criadoEm   DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  deletadoEm DateTime?
+  chamado    Chamado  @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
+  autor      Usuario  @relation(fields: [autorId], references: [id])
 
-  @@index([ticketId])
+  @@index([chamadoId])
+  @@map("mensagens")
 }
 
-model Evidence {
-  id           String   @id @default(cuid())
-  ticketId     String
-  filename     String
-  mimeType     String
-  size         Int
-  storageKey   String
-  uploadedById String
-  createdAt    DateTime @default(now())
-  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+model Anexo {
+  id            String   @id @default(cuid())
+  chamadoId     String
+  nomeArquivo   String
+  mimeType      String
+  tamanhoBytes  Int
+  caminhoArquivo String
+  enviadoPorId  String
+  enviadoEm     DateTime @default(now())
+  chamado       Chamado  @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
+  enviadoPor    Usuario  @relation(fields: [enviadoPorId], references: [id])
 
-  @@index([ticketId])
+  @@index([chamadoId])
+  @@map("anexos")
 }
 
 /* ---------- TAGS ---------- */
 model Tag {
   id        String      @id @default(cuid())
-  name      String      @unique
-  color     String?     @db.VarChar(16)
-  createdAt DateTime    @default(now())
-  tickets   TicketTag[]
+  nome      String      @unique
+  cor       String?     @db.VarChar(16)
+  criadoEm  DateTime    @default(now())
+  chamados  ChamadoTag[]
+
+  @@map("tags")
 }
 
-model TicketTag {
-  ticketId String
-  tagId    String
-  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+model ChamadoTag {
+  chamadoId String
+  tagId     String
+  chamado   Chamado @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
-  @@id([ticketId, tagId])
+  @@id([chamadoId, tagId])
   @@index([tagId])
+  @@map("chamados_tags")
 }
 
 /* ---------- AUDITORIA & E-MAILS ---------- */
-model AuditLog {
-  id        String   @id @default(cuid())
-  actorId   String?
-  action    String
-  target    String?
-  meta      Json?
-  createdAt DateTime @default(now())
-  actor     User?    @relation(fields: [actorId], references: [id])
+model Auditoria {
+  id         String   @id @default(cuid())
+  feitoPorId String?
+  acao       String
+  alvo       String?
+  meta       Json?
+  feitoEm    DateTime @default(now())
+  feitoPor   Usuario? @relation(fields: [feitoPorId], references: [id])
 
-  @@index([createdAt])
+  @@index([feitoEm])
+  @@map("auditoria")
 }
 
-model EmailOutbox {
-  id         String   @id @default(cuid())
-  to         String
-  subject    String
-  payload    Json
-  providerId String?
-  status     String   @default("PENDING")
-  error      String?
-  createdAt  DateTime @default(now())
-  sentAt     DateTime?
+model EmailEnvio {
+  id             String   @id @default(cuid())
+  destinatario   String
+  assunto        String
+  payload        Json
+  providerMsgId  String?
+  status         String   @default("pendente")
+  erro           String?
+  criadoEm       DateTime @default(now())
+  enviadoEm      DateTime?
 
   @@index([status])
+  @@map("email_envios")
 }
