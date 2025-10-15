@@ -1,129 +1,85 @@
-// src/modules/auth/auth.service.ts
-import { PrismaClient, Papel } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { generateAccessToken, generateRefreshToken } from "../../utils/jwt";
-import { hashValue } from "../../utils/crypto";
+import { hashValue } from "../../utils/crypto";  
 
 const prisma = new PrismaClient();
 
-type LoginContext = {
-  ip?: string | null;
-  userAgent?: string | null;
-};
+// Serviço para login de usuário
+export const loginService = async (email: string, password: string) => {
+  const user = await prisma.user.findUnique({ where: { email } });
 
-const REFRESH_TTL_DAYS = 7;
+  if (!user || !user.isActive) throw new Error("Usuário ou senha inválidos");
 
-/** LOGIN */
-export const loginService = async (
-  email: string,
-  password: string,
-  ctx: LoginContext = {}
-) => {
-  const user = await prisma.usuario.findUnique({
-    where: { emailPessoal: email },
-  });
-
-  if (!user || !user.ativo) {
-    throw new Error("Usuário ou senha inválidos");
-  }
-
-  const validPassword = await bcrypt.compare(password, user.senhaHash);
+  const validPassword = await bcrypt.compare(password, user.passwordHash);
   if (!validPassword) throw new Error("Usuário ou senha inválidos");
 
-  // Gera tokens
   const accessToken = generateAccessToken({
     sub: user.id,
-    email: user.emailPessoal ?? undefined,
-    role: user.papel, // enum Papel
+    email: user.email,
+    role: user.role,
   });
+
   const refreshToken = generateRefreshToken({ sub: user.id });
 
-  // Armazena APENAS o hash do refresh
+  // Hash do refreshToken para armazenamento
   const refreshHash = await hashValue(refreshToken);
-  const expires = new Date();
-  expires.setDate(expires.getDate() + REFRESH_TTL_DAYS);
 
-  await prisma.sessao.create({
+  // Criar sessão no banco de dados com refresh token
+  await prisma.session.create({
     data: {
-      usuarioId: user.id,
+      userId: user.id,
       refreshHash,
-      expiraEm: expires,
-      ip: ctx.ip ?? null,
-      userAgent: ctx.userAgent ?? null,
+      expiresAt: new Date(new Date().setDate(new Date().getDate() + 7)), // Expira em 7 dias
+      ip: "", 
+      userAgent: "", 
     },
   });
 
   return { accessToken, refreshToken, user };
 };
 
-/** REFRESH (gera novo access a partir do refreshToken) */
+// Serviço para gerar novo access token usando refresh token
 export const refreshService = async (refreshToken: string) => {
-  // Comparação por HASH, nunca em texto puro
-  const refreshHash = await hashValue(refreshToken);
-
-  const session = await prisma.sessao.findFirst({
-    where: { refreshHash },
-    include: {
-      usuario: true,
-    },
+  // Verificar refreshToken no banco de dados
+  const session = await prisma.session.findFirst({
+    where: { refreshHash: refreshToken }, 
   });
 
-  if (!session) throw new Error("Sessão não encontrada ou expirada");
-  if (session.expiraEm && session.expiraEm < new Date()) {
-    // sessão expirada → remover opcionalmente
-    try {
-      await prisma.sessao.delete({ where: { id: session.id } });
-    } catch {}
-    throw new Error("Sessão expirada");
-  }
-
-  const user = session.usuario;
-  if (!user || !user.ativo) throw new Error("Usuário inativo");
+  if (!session) throw new Error("Sessão não encontrada ou expirou");
 
   const accessToken = generateAccessToken({
-    sub: user.id,
-    email: user.emailPessoal ?? undefined,
-    role: user.papel,
+    sub: session.userId,
+    email: "user-email", 
+    role: "user-role", 
   });
 
   return { accessToken };
 };
 
-/** LOGOUT (invalida o refresh) */
+// Serviço para logout (invalidar o refresh token)
 export const logoutService = async (refreshToken: string) => {
-  const refreshHash = await hashValue(refreshToken);
-
-  const session = await prisma.sessao.findFirst({
-    where: { refreshHash },
-    select: { id: true },
+  // Encontrar a sessão com base no refresh token
+  const session = await prisma.session.findFirst({
+    where: { refreshHash: refreshToken }, // Verifica o refreshHash
   });
 
-  if (!session) throw new Error("Sessão não encontrada");
-
-  await prisma.sessao.delete({
-    where: { id: session.id },
-  });
-
-  return { success: true };
+  if (session) {
+    await prisma.session.delete({
+      where: { id: session.id }, // Deleta a sessão do banco de dados
+    });
+  } else {
+    throw new Error("Sessão não encontrada");
+  }
 };
 
-/** ME (dados públicos do usuário autenticado) */
+// Serviço para obter dados do usuário (protegido por autenticação)
 export const meService = async (userId: string) => {
-  const user = await prisma.usuario.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      id: true,
-      nome: true,
-      emailPessoal: true,
-      emailEducacional: true,
-      ra: true,
-      papel: true,
-      ativo: true,
-      criadoEm: true,
-      atualizadoEm: true,
-    },
   });
 
   if (!user) throw new Error("Usuário não encontrado");
-  return user;
+
+  return user; // Retorna os dados do usuário
 };
