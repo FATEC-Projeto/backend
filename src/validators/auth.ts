@@ -25,3 +25,16 @@ export const RegisterSchema = z.object({
   educationalEmail: zEmail.optional(),
   ra: zStringTrim.max(32).optional(),
 });
+
+export const ForgotPasswordSchema = z.object({
+  body: z.object({
+    email: z.string().email("Email inválido"),
+  }),
+});
+
+export const ResetPasswordSchema = z.object({
+  body: z.object({
+    token: z.string().min(10, "Token inválido"),
+    novaSenha: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  }),
+});
