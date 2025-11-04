@@ -129,8 +129,8 @@ model Servico {
 model Usuario {
   id               String    @id @default(cuid())
   organizacaoId    String?
-  cursoNome        String?   
-  cursoSigla       String?   @db.VarChar(16) 
+  cursoNome        String?
+  cursoSigla       String?   @db.VarChar(16)
   nome             String
   emailPessoal     String    @unique
   emailEducacional String?
@@ -145,6 +145,8 @@ model Usuario {
   loginAttempts     Int       @default(0)
   lockedUntil       DateTime?
   lastFailedAttempt DateTime?
+
+  deveRedefinirSenha Boolean  @default(true)
 
   organizacao Organizacao? @relation(fields: [organizacaoId], references: [id])
 
