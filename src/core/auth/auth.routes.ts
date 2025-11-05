@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { login, refresh, logout, me, register, getUser } from "./auth.controller";
+import { login, refresh, logout, me, register, getUser, passwordReset } from "./auth.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { buildRouteValidator, zEmail, zStringTrim, zPapelOptional } from "../../utils/zod-helpers";
 import { z } from "zod";
@@ -19,12 +19,12 @@ export const LoginSchema = z
 const RefreshSchema = z.object({ refreshToken: z.string().min(20) });
 
 const RegisterSchema = z.object({
-  email: zEmail, 
+  email: zEmail,
   password: zStringTrim.min(8),
-  role: zPapelOptional, 
+  role: zPapelOptional,
   name: zStringTrim.min(2),
   educationalEmail: zEmail.optional(),
-  ra: zStringTrim.max(32).optional(), 
+  ra: zStringTrim.max(32).optional(),
 });
 
 const GetUserQuerySchema = z.object({
@@ -37,29 +37,38 @@ const GetUserQuerySchema = z.object({
 
 const preBody =
   (schema: z.ZodTypeAny) =>
-  async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const v = buildRouteValidator({ body: schema }).parse(req);
-    if ("error" in v) {
-      await reply.code(400).send(v.error);
-      return;
-    }
-  };
+    async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
+      const v = buildRouteValidator({ body: schema }).parse(req);
+      if ("error" in v) {
+        await reply.code(400).send(v.error);
+        return;
+      }
+    };
 
 const preQuery =
   (schema: z.ZodTypeAny) =>
-  async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const v = buildRouteValidator({ query: schema }).parse(req);
-    if ("error" in v) {
-      await reply.code(400).send(v.error);
-      return;
-    }
-  };
+    async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
+      const v = buildRouteValidator({ query: schema }).parse(req);
+      if ("error" in v) {
+        await reply.code(400).send(v.error);
+        return;
+      }
+    };
 
 export default function authRoutes(app: FastifyInstance): void {
-  app.post("/login",    { preHandler: preBody(LoginSchema) }, login);
-  app.post("/refresh",  { preHandler: preBody(RefreshSchema) }, refresh);
-  app.post("/logout",   { preHandler: preBody(RefreshSchema) }, logout);
+  app.post("/login", { preHandler: preBody(LoginSchema) }, login);
+  app.post("/refresh", { preHandler: preBody(RefreshSchema) }, refresh);
+  app.post("/logout", { preHandler: preBody(RefreshSchema) }, logout);
   app.post("/register", { preHandler: preBody(RegisterSchema) }, register);
+
+  // 🔽 Nova rota de redefinição de senha
+  app.post("/password_reset", {
+    preHandler: preBody(z.object({
+      ra: z.string().min(1),
+      oldPassword: z.string().min(6),
+      newPassword: z.string().min(6),
+    }))
+  }, passwordReset);
 
   app.get("/me", { preHandler: authenticate }, me);
   app.get("/usuarios", { preHandler: [authenticate, preQuery(GetUserQuerySchema)] }, getUser);

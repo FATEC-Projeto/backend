@@ -1,4 +1,5 @@
 // core/auth/auth.controller.ts
+import { z } from "zod";
 import { FastifyRequest, FastifyReply } from "fastify";
 import { buildRouteValidator } from "../../utils/zod-helpers";
 import { LoginSchema, RegisterSchema, RefreshSchema } from "../../validators/auth";
@@ -12,6 +13,58 @@ import {
   rotateSession,
   REFRESH_TOKEN_TTL_MS,
 } from "../../security/refresh";
+
+const PasswordResetSchema = z.object({
+  ra: z.string().min(1, "RA é obrigatório"),
+  oldPassword: z.string().min(6, "Senha atual é obrigatória"),
+  newPassword: z.string().min(6, "Nova senha é obrigatória"),
+});
+
+export const passwordReset = async (req: FastifyRequest, res: FastifyReply) => {
+  const prisma = (req.server as any).prisma;
+
+  try {
+    const parsed = PasswordResetSchema.parse(req.body);
+    const { ra, oldPassword, newPassword } = parsed;
+
+    const user = await prisma.usuario.findUnique({
+      where: { ra },
+      select: {
+        id: true,
+        senhaHash: true,
+        ativo: true,
+        deveRedefinirSenha: true,
+      },
+    });
+
+    if (!user) {
+      return res.code(404).send({ error: "Usuário não encontrado" });
+    }
+
+    if (!user.ativo) {
+      return res.code(403).send({ error: "Usuário inativo" });
+    }
+
+    const senhaCorreta = await verifyPassword(user.senhaHash, oldPassword);
+    if (!senhaCorreta) {
+      return res.code(401).send({ error: "Senha atual incorreta" });
+    }
+
+    const novaHash = await hashPassword(newPassword);
+    await prisma.usuario.update({
+      where: { id: user.id },
+      data: {
+        senhaHash: novaHash,
+        deveRedefinirSenha: false, // ✅ desativa o reset obrigatório
+      },
+    });
+
+    return res.send({ message: "Senha redefinida com sucesso!" });
+  } catch (err: any) {
+    req.log.error({ err }, "Erro ao redefinir senha");
+    return res.code(400).send({ error: err.message ?? "Erro ao redefinir senha" });
+  }
+};
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -35,7 +88,7 @@ function parseExpires(v?: string | number) {
 /** VERIFICA SE CONTA ESTÁ BLOQUEADA */
 const checkAccountLock = async (prisma: any, user: any) => {
   if (!user.lockedUntil) return false;
-  
+
   // Se o bloqueio expirou, resetar
   if (user.lockedUntil < new Date()) {
     await prisma.usuario.update({
@@ -48,7 +101,7 @@ const checkAccountLock = async (prisma: any, user: any) => {
     });
     return false;
   }
-  
+
   return true;
 };
 
@@ -84,7 +137,7 @@ const recordFailedAttempt = async (prisma: any, userId: string, email: string, i
         lockedUntil,
       },
     });
-    
+
     // Atualizar a auditoria com motivo de bloqueio
     await prisma.loginTentativa.create({
       data: {
@@ -302,7 +355,18 @@ export const login = async (req: FastifyRequest, res: FastifyReply): Promise<voi
 
     // Não vazar campos sensíveis
     const { senhaHash, loginAttempts, lockedUntil, lastFailedAttempt, ...safeUser } = user as any;
-    await res.send({ user: safeUser, accessToken, refreshToken });
+    // Buscar flag se o usuário precisa redefinir senha
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: user.id },
+      select: { deveRedefinirSenha: true },
+    });
+
+    await res.send({
+      user: safeUser,
+      accessToken,
+      refreshToken,
+      mustResetPassword: usuario?.deveRedefinirSenha ?? false, // 🔸 Front saberá se precisa resetar
+    });
 
   } catch (e) {
     req.log.error({ e }, "💥 Erro no login");
@@ -458,7 +522,7 @@ export const refresh = async (req: FastifyRequest, res: FastifyReply): Promise<v
         path: '/',
         maxAge: parseExpires(process.env.JWT_ACCESS_EXPIRES),
       });
-    } catch {}
+    } catch { }
 
     await res.send({ accessToken, refreshToken: novoRefresh });
   } catch (e) {
