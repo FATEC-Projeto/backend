@@ -8,7 +8,6 @@ export type TicketsListQuery = {
   nivel?: NivelChamado | NivelChamado[]
   prioridade?: PrioridadeChamado | PrioridadeChamado[]
   clienteId?: string
-  criadoPorId?: string; 
   contratoId?: string
   setorId?: string
   servicoId?: string
@@ -18,7 +17,7 @@ export type TicketsListQuery = {
   criadoAte?: string // ISO
   orderBy?: 'criadoEm' | 'atualizadoEm'
   orderDir?: 'asc' | 'desc'
-  feitoPorId?: string
+  criadoPorId?: string
   include?: ('cliente' | 'contrato' | 'servico' | 'setor' | 'responsavel' | 'criadoPor' | 'historico')[]
 }
 

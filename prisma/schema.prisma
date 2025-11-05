@@ -129,6 +129,8 @@ model Servico {
 model Usuario {
   id               String    @id @default(cuid())
   organizacaoId    String?
+  cursoNome        String?   
+  cursoSigla       String?   @db.VarChar(16) 
   nome             String
   emailPessoal     String    @unique
   emailEducacional String?
@@ -140,6 +142,9 @@ model Usuario {
   criadoEm         DateTime  @default(now())
   atualizadoEm     DateTime  @updatedAt
   deletadoEm       DateTime?
+  loginAttempts     Int       @default(0)
+  lockedUntil       DateTime?
+  lastFailedAttempt DateTime?
 
   organizacao Organizacao? @relation(fields: [organizacaoId], references: [id])
 
@@ -157,6 +162,7 @@ model Usuario {
 
   @@index([emailPessoal])
   @@index([organizacaoId])
+  @@index([cursoSigla])
   @@map("usuarios")
 }
 

@@ -1,9 +1,15 @@
-import { JwtPayload } from "../core/auth/auth.types";  
+import type { FastifyInstance } from "fastify";
+import type WebSocket from "ws";
 
 declare global {
-  namespace Fastify {
-    interface Request {
-      user?: JwtPayload;  
-    }
-  }
+  var app: FastifyInstance & {
+    wsClients?: Map<string, WebSocket>;
+    notifyUsers?: (
+      userIds: string[],
+      payload: Record<string, any>,
+      prisma: any
+    ) => Promise<void>;
+  };
 }
+
+export {};

@@ -92,27 +92,22 @@ export async function list(req: FastifyRequest, res: FastifyReply) {
 
   const prisma = (req.server as any).prisma;
 
+  const authUser = (req as any).user as { sub: string; role: string } | undefined;
+  if (!authUser) {
+    return void (await res.code(401).send({ error: "Não autenticado" }));
+  }
+
   try {
-    // 🔹 monta query base
     const q = parsed.data!.query!;
+    const isAluno = authUser.role === 'USUARIO';
 
-    // ⚙️ suporta tanto array quanto string no include (ex: "setor,criadoPor")
-    const normalizedInclude =
-      q.include === undefined
-        ? undefined
-        : Array.isArray(q.include)
-        ? q.include
-        : String(q.include)
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean);
-
-    // ❗ aqui é o ponto principal:
-    // removemos feitoPorId — assim ele não filtra por usuário e lista TODOS os chamados
-    const query = {
+    // ✅ CORREÇÃO FINAL DA LÓGICA
+    const query: TicketsListQuery = {
       ...q,
-      include: normalizedInclude,
-      // feitoPorId removido para listar todos
+      include: q.include, 
+      // Se for aluno, força o ID do token.
+      // Se for admin, usa o 'criadoPorId' que veio da query (q.criadoPorId)
+      criadoPorId: isAluno ? authUser.sub : q.criadoPorId,
     };
 
     const page = await listTickets(prisma, query);

@@ -1,85 +1,108 @@
 import { PrismaClient } from "@prisma/client";
-import type { ListMessagesQuery } from "./messages.types";
-import { notifyMany } from "../notifications/notify";
 
 type Ctx = PrismaClient;
 
+/**
+ * Cria uma nova mensagem vinculada a um chamado
+ */
 export async function createTicketMessage(
   prisma: Ctx,
   chamadoId: string,
   autorId: string,
   conteudo: string
 ) {
-  // verifica existência e se não está deletado
-  const chamado = await prisma.chamado.findFirst({
-    where: { id: chamadoId, deletadoEm: null },
-    select: { id: true, protocolo: true, criadoPorId: true, responsavelId: true, organizacaoId: true },
-  });
-  if (!chamado) {
-    throw Object.assign(new Error("Chamado não encontrado"), { code: "P2025" });
-  }
-
+  // 💾 Cria a mensagem no banco
   const msg = await prisma.mensagem.create({
     data: { chamadoId, autorId, conteudo },
-    select: { id: true, criadoEm: true },
+    include: {
+      autor: { select: { id: true, nome: true, emailPessoal: true } },
+    },
   });
 
-  // Notifica criador e responsável (exceto o autor)
-  const alvos = new Set<string>();
-  if (chamado.criadoPorId && chamado.criadoPorId !== autorId) alvos.add(chamado.criadoPorId);
-  if (chamado.responsavelId && chamado.responsavelId !== autorId) alvos.add(chamado.responsavelId);
+  // 🔔 Busca os usuários relacionados ao chamado (solicitante, responsável e setor)
+  const chamado = await prisma.chamado.findUnique({
+    where: { id: chamadoId },
+    select: {
+      criadoPorId: true,
+      responsavelId: true,
+      setorId: true,
+      organizacaoId: true,
+      protocolo: true,
+    },
+  });
 
-  if (alvos.size) {
-    await notifyMany(prisma, Array.from(alvos), {
-      titulo: "Nova mensagem no chamado",
-      mensagem: `Você tem uma nova mensagem no chamado ${chamado.protocolo ?? chamado.id}.`,
-      tipo: "MENSAGEM_NOVA",
-      canal: "IN_APP",
-      chamadoId,
-      mensagemId: msg.id,
-      organizacaoId: chamado.organizacaoId ?? null,
+  const userIds = new Set<string>();
+  if (chamado?.criadoPorId) userIds.add(chamado.criadoPorId);
+  if (chamado?.responsavelId) userIds.add(chamado.responsavelId);
+
+  if (chamado?.setorId) {
+    const vinculos = await prisma.usuarioSetor.findMany({
+      where: { setorId: chamado.setorId, usuario: { ativo: true } },
+      select: { usuarioId: true },
     });
+    vinculos.forEach(v => userIds.add(v.usuarioId));
+  }
+
+  // 📡 Envia notificação persistente + broadcast em tempo real
+  const app: any = (global as any).fastifyAppInstance; // setado no app.ts
+
+  // 🔥 1. Broadcast WebSocket (para atualizar os chats de todos conectados)
+  if ((globalThis as any).broadcastWS) {
+    (globalThis as any).broadcastWS({
+      type: "nova_mensagem",
+      chamadoId,
+      mensagem: msg,
+    });
+  }
+
+  // 🔔 2. Notificação persistente (banco + push realtime)
+  if (app?.notifyUsers) {
+    await app.notifyUsers(
+      Array.from(userIds),
+      {
+        titulo: "Nova mensagem no chamado",
+        mensagem: `O chamado ${chamado?.protocolo ?? chamadoId} recebeu uma nova mensagem.`,
+        tipo: "MENSAGEM_NOVA",
+        canal: "IN_APP",
+        meta: {
+          chamadoId,
+          autorId,
+          conteudo,
+        },
+      },
+      prisma
+    );
   }
 
   return msg;
 }
 
+/**
+ * Lista todas as mensagens de um chamado
+ */
 export async function listTicketMessages(
   prisma: Ctx,
   chamadoId: string,
-  q: ListMessagesQuery
-) {
-  // valida chamado
-  const exists = await prisma.chamado.findFirst({
-    where: { id: chamadoId, deletadoEm: null },
-    select: { id: true },
-  });
-  if (!exists) {
-    throw Object.assign(new Error("Chamado não encontrado"), { code: "P2025" });
+  query: {
+    page?: number;
+    pageSize?: number;
+    orderDir?: "asc" | "desc";
   }
+) {
+  const { page = 1, pageSize = 100, orderDir = "asc" } = query;
 
-  const page = q.page ?? 1;
-  const pageSize = q.pageSize ?? 100;
-  const skip = (page - 1) * pageSize;
-  const take = pageSize;
-
-  const where = { chamadoId };
-  const [total, items] = await Promise.all([
-    prisma.mensagem.count({ where }),
+  const [total, mensagens] = await Promise.all([
+    prisma.mensagem.count({ where: { chamadoId } }),
     prisma.mensagem.findMany({
-      where,
-      orderBy: { criadoEm: q.orderDir ?? "asc" },
-      skip,
-      take,
-      select: {
-        id: true,
-        conteudo: true,
-        criadoEm: true,
-        atualizadoEm: true,
+      where: { chamadoId },
+      orderBy: { criadoEm: orderDir },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
         autor: { select: { id: true, nome: true, emailPessoal: true } },
       },
     }),
   ]);
 
-  return { total, page, pageSize, items };
+  return { total, page, pageSize, mensagens };
 }

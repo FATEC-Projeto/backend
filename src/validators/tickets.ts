@@ -1,10 +1,20 @@
-// src/validators/tickets.ts
 import { z } from 'zod'
 
 // enums como string literal para funcionar mesmo antes do cliente Prisma
 export const StatusChamadoValues = ['ABERTO','EM_ATENDIMENTO','AGUARDANDO_USUARIO','RESOLVIDO','ENCERRADO'] as const
 export const NivelChamadoValues = ['N1','N2','N3'] as const
 export const PrioridadeChamadoValues = ['BAIXA','MEDIA','ALTA','URGENTE'] as const
+
+// ✅ 1. Defina as chaves de inclusão permitidas UMA VEZ
+const IncludeKeysEnum = z.enum([
+  'cliente',
+  'contrato',
+  'servico',
+  'setor',
+  'responsavel',
+  'criadoPor',
+  'historico'
+]);
 
 const IsoDate = z.string().datetime({ offset: true }).or(z.string().datetime().or(z.string())).optional()
 
@@ -63,14 +73,23 @@ export const TicketListSchema = z.object({
     servicoId: z.string().optional(),
     responsavelId: z.string().optional(),
     organizacaoId: z.string().optional(),
+    criadoPorId: z.string().optional(),
     criadoDe: IsoDate,
     criadoAte: IsoDate,
     orderBy: z.enum(['criadoEm','atualizadoEm']).default('criadoEm').optional(),
     orderDir: z.enum(['asc','desc']).default('desc').optional(),
+    
+    // ✅ 2. Corrija o 'include' para validar a string transformada
     include: z
       .union([
-        z.string().transform((s) => s.split(",").map((x) => x.trim())), // String separada por vírgula
-        z.array(z.enum(['cliente','contrato','servico','setor','responsavel','criadoPor','historico'])) // Array de strings
+        // Opção A: Já é um array (ex: ?include=setor&include=criadoPor)
+        z.array(IncludeKeysEnum), 
+        
+        // Opção B: É uma string (ex: ?include=setor,criadoPor)
+        z.string()
+         .transform((s) => s.split(",").map((x) => x.trim()))
+         // 'pipe' valida o resultado da transformação
+         .pipe(z.array(IncludeKeysEnum)) 
       ])
       .optional(),
   }),

@@ -48,3 +48,46 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
     throw new Error("Token inválido ou expirado");
   }
 }
+
+export interface DownloadTokenPayload {
+  sub: string; // user id
+  anexoId: string;
+  purpose: 'DOWNLOAD';
+  iat?: number;
+  exp?: number;
+}
+
+export function generateDownloadToken(
+  payload: { sub: string; anexoId: string },
+  opts?: { expiresIn?: SignOptions["expiresIn"] }
+): string {
+  const secret = process.env.JWT_ACCESS_SECRET;
+  if (!secret) throw new Error("JWT_ACCESS_SECRET não definido");
+
+  return jwt.sign(
+    { sub: payload.sub, anexoId: payload.anexoId, purpose: 'DOWNLOAD' },
+    secret,
+    {
+      algorithm: 'HS256',
+      expiresIn: opts?.expiresIn ?? '5m',
+      issuer: process.env.JWT_ISSUER || 'helpdesk',
+      audience: process.env.JWT_AUDIENCE || 'helpdesk-download',
+    }
+  );
+}
+
+export function verifyDownloadToken(token: string): DownloadTokenPayload {
+  const secret = process.env.JWT_ACCESS_SECRET;
+  if (!secret) throw new Error("JWT_ACCESS_SECRET não definido");
+
+  try {
+    return jwt.verify(token, secret, {
+      algorithms: ['HS256'],
+      issuer: process.env.JWT_ISSUER || 'helpdesk',
+      audience: process.env.JWT_AUDIENCE || 'helpdesk-download',
+      clockTolerance: 5,
+    }) as DownloadTokenPayload;
+  } catch {
+    throw new Error('Token inválido ou expirado');
+  }
+}

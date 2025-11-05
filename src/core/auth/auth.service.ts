@@ -15,11 +15,95 @@ const ACCESS_TTL_MIN = 15;              // access: 15 min
 const REFRESH_TTL_DAYS = 7;             // refresh: 7 dias
 const REFRESH_TTL_MS = REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000;
 
+// CONFIGURAÇÕES DE BLOQUEIO
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutos
+
 function plusMs(ms: number) {
   return new Date(Date.now() + ms);
 }
 
-/** LOGIN */
+/** VERIFICA SE CONTA ESTÁ BLOQUEADA */
+const checkAccountLock = async (user: any) => {
+  if (!user.lockedUntil) return false;
+  
+  // Se o bloqueio expirou, resetar
+  if (user.lockedUntil < new Date()) {
+    await prisma.usuario.update({
+      where: { id: user.id },
+      data: {
+        loginAttempts: 0,
+        lockedUntil: null,
+        lastFailedAttempt: null,
+      },
+    });
+    return false;
+  }
+  
+  return true;
+};
+
+/** REGISTRAR TENTATIVA FALHA */
+const recordFailedAttempt = async (userId: string, email: string, ctx: LoginContext, motivo: string = "Senha incorreta") => {
+  // Atualizar contador no usuário
+  const updatedUser = await prisma.usuario.update({
+    where: { id: userId },
+    data: {
+      loginAttempts: { increment: 1 },
+      lastFailedAttempt: new Date(),
+    },
+  });
+
+  // Registrar na auditoria
+  await prisma.loginTentativa.create({
+    data: {
+      email,
+      usuarioId: userId,
+      sucesso: false,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      motivo,
+    },
+  });
+
+  // Verificar se deve bloquear a conta
+  if (updatedUser.loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+    await prisma.usuario.update({
+      where: { id: userId },
+      data: {
+        lockedUntil: plusMs(LOCKOUT_DURATION_MS),
+      },
+    });
+  }
+
+  return updatedUser;
+};
+
+/** RESETAR TENTATIVAS EM SUCESSO */
+const resetLoginAttempts = async (userId: string, email: string, ctx: LoginContext) => {
+  await prisma.usuario.update({
+    where: { id: userId },
+    data: {
+      loginAttempts: 0,
+      lockedUntil: null,
+      lastFailedAttempt: null,
+    },
+  });
+
+  // Registrar tentativa bem-sucedida na auditoria
+  await prisma.loginTentativa.create({
+    data: {
+      email,
+      usuarioId: userId,
+      sucesso: true,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      motivo: "Login bem-sucedido",
+    },
+  });
+};
+
+/** LOGIN ATUALIZADO COM BLOQUEIO */
 export const loginService = async (
   email: string,
   password: string,
@@ -29,22 +113,76 @@ export const loginService = async (
     where: { emailPessoal: email },
   });
 
-  if (!user || !user.ativo || !user.senhaHash) {
+  if (!user) {
+    // Registrar tentativa falha mesmo para usuário não encontrado (sem userId)
+    await prisma.loginTentativa.create({
+      data: {
+        email,
+        sucesso: false,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        motivo: "Usuário não encontrado",
+      },
+    });
     throw new Error("Usuário ou senha inválidos");
   }
 
-  const ok = await argon2.verify(user.senhaHash, password);
-  if (!ok) throw new Error("Usuário ou senha inválidos");
+  // Verificar se conta está ativa
+  if (!user.ativo || !user.senhaHash) {
+    await prisma.loginTentativa.create({
+      data: {
+        email,
+        usuarioId: user.id,
+        sucesso: false,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        motivo: "Conta inativa",
+      },
+    });
+    throw new Error("Usuário ou senha inválidos");
+  }
 
-  // Access (com exp curto)
+  // Verificar se conta está bloqueada
+  const isLocked = await checkAccountLock(user);
+  if (isLocked) {
+    const remainingTime = Math.ceil((user.lockedUntil!.getTime() - Date.now()) / 1000);
+    await prisma.loginTentativa.create({
+      data: {
+        email,
+        usuarioId: user.id,
+        sucesso: false,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        motivo: `Conta bloqueada - ${remainingTime}s restantes`,
+      },
+    });
+    throw new Error(`Conta bloqueada devido a muitas tentativas. Tente novamente em ${Math.ceil(remainingTime / 60)} minutos.`);
+  }
+
+  // Verificar senha
+  const ok = await argon2.verify(user.senhaHash, password);
+  if (!ok) {
+    const updatedUser = await recordFailedAttempt(user.id, email, ctx);
+    const attemptsLeft = MAX_LOGIN_ATTEMPTS - updatedUser.loginAttempts;
+    
+    if (attemptsLeft <= 0) {
+      throw new Error("Conta bloqueada devido a muitas tentativas falhas. Tente novamente em 15 minutos.");
+    }
+    
+    throw new Error(`Usuário ou senha inválidos. ${attemptsLeft} tentativas restantes.`);
+  }
+
+  // Login bem-sucedido - resetar tentativas
+  await resetLoginAttempts(user.id, email, ctx);
+
+  // Gerar tokens
   const accessToken = generateAccessToken({
     sub: user.id,
     email: user.emailPessoal ?? undefined,
-    role: user.papel, // enum Papel
+    role: user.papel,
     exp: Math.floor((Date.now() + ACCESS_TTL_MIN * 60 * 1000) / 1000),
   });
 
-  // Refresh (opaco ou JWT — aqui tanto faz; vamos só guardar o HASH no banco)
   const refreshToken = generateRefreshToken({ sub: user.id });
   const refreshHash = await hashValue(refreshToken);
 
@@ -55,8 +193,6 @@ export const loginService = async (
       expiraEm: plusMs(REFRESH_TTL_MS),
       ip: ctx.ip ?? null,
       userAgent: ctx.userAgent ?? null,
-      // ultimoUsoEm é default(now()) na migration; se quiser atualizar já:
-      // ultimoUsoEm: new Date(),
     },
   });
 
@@ -81,7 +217,7 @@ export const refreshService = async (refreshToken: string) => {
         where: { id: session.id },
         data: { revogadaEm: new Date() },
       });
-    } catch {}
+    } catch { }
     throw new Error("Sessão expirada");
   }
 

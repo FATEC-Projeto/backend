@@ -26,12 +26,12 @@ const buildWhere = (q: TicketsListQuery) => {
   const {
     search, status, nivel, prioridade,
     clienteId, contratoId, setorId, servicoId, responsavelId, organizacaoId,
-    criadoDe, criadoAte, feitoPorId,
+    criadoDe, criadoAte, criadoPorId,
   } = q;
 
   return {
     deletadoEm: null,
-    ...(feitoPorId ? { criadoPorId: feitoPorId } : {}),
+    ...(criadoPorId ? { criadoPorId } : {}),
     ...(organizacaoId ? { organizacaoId } : {}),
     ...(clienteId ? { clienteId } : {}),
     ...(contratoId ? { contratoId } : {}),
@@ -61,13 +61,12 @@ const buildWhere = (q: TicketsListQuery) => {
   };
 };
 
-/** Busca todos os usuárioIds **ativos** vinculados ao setor (sem campo `ativo` em UsuarioSetor) */
+/** Busca todos os usuárioIds **ativos** vinculados ao setor */
 async function getUsuariosDoSetor(prisma: Ctx, setorId: string): Promise<string[]> {
   const vinculos = await prisma.usuarioSetor.findMany({
     where: {
       setorId,
-      usuario: { ativo: true, deletadoEm: null }, // ✅ filtra pelo usuário
-      // Se quiser somente liderança do setor: papel: { nome: 'LIDER' }
+      usuario: { ativo: true, deletadoEm: null },
     },
     select: { usuarioId: true },
   });
@@ -145,11 +144,32 @@ export async function createTicket(prisma: Ctx, data: TicketCreateInput, opts: {
 }
 
 export async function getTicketById(prisma: Ctx, id: string, include?: TicketsListQuery['include']) {
+  // Usa 'any' para permitir adicionar novas chaves dinamicamente
+  const baseInclude: any = ticketInclude(include);
+
+  // ✅ Inclui mensagens e autor
+  baseInclude.mensagens = {
+    include: {
+      autor: { select: { id: true, nome: true, emailPessoal: true } },
+    },
+    orderBy: { criadoEm: "asc" },
+  };
+
+  // ✅ Inclui histórico com o autor da ação
+  baseInclude.historico = {
+    include: {
+      porUsuario: { select: { id: true, nome: true, emailPessoal: true } },
+    },
+    orderBy: { criadoEm: "desc" },
+  };
+
+  // ✅ Retorna o chamado completo com todas as relações relevantes
   return prisma.chamado.findFirst({
     where: { id, deletadoEm: null },
-    include: ticketInclude(include),
+    include: baseInclude,
   });
 }
+
 
 export async function listTickets(prisma: Ctx, q: TicketsListQuery) {
   const page = q.page ?? 1;
@@ -223,7 +243,7 @@ export async function updateTicket(prisma: Ctx, id: string, data: TicketUpdateIn
     if (alvoInfo?.criadoPorId) alvos.add(alvoInfo.criadoPorId);
     if (alvoInfo?.responsavelId) alvos.add(alvoInfo.responsavelId);
 
-    // 👉 Setor também é avisado quando entra em EM_ATENDIMENTO (ajuste conforme sua regra)
+    // 👉 Setor também é avisado quando entra em EM_ATENDIMENTO
     const sectorNotifyStatuses: StatusChamado[] = [StatusChamado.EM_ATENDIMENTO];
     if (alvoInfo?.setorId && data.status && sectorNotifyStatuses.includes(data.status as StatusChamado)) {
       const usuariosDoSetor = await getUsuariosDoSetor(prisma, alvoInfo.setorId);
@@ -238,9 +258,7 @@ export async function updateTicket(prisma: Ctx, id: string, data: TicketUpdateIn
         chamadoId: id,
         organizacaoId: alvoInfo?.organizacaoId ?? null,
       });
-    } catch {
-      // ignora falha de notificação
-    }
+    } catch {}
   }
 
   // 🔔 Notificação por troca de responsável
@@ -260,9 +278,7 @@ export async function updateTicket(prisma: Ctx, id: string, data: TicketUpdateIn
           chamadoId: id,
           organizacaoId: alvoInfo?.organizacaoId ?? null,
         });
-      } catch {
-        // ignora falha de notificação
-      }
+      } catch {}
     }
   }
 
