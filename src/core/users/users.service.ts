@@ -64,6 +64,7 @@ export async function createUser(
       papel: (data.papel as any) ?? 'USUARIO',
       ativo: data.ativo ?? true,
       organizacaoId: data.organizacaoId ?? null,
+      deveRedefinirSenha: true, // 👈 senha provisória no primeiro acesso
     },
     select: baseSelect,
   })
