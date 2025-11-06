@@ -16,7 +16,7 @@ import {
 
 const PasswordResetSchema = z.object({
   ra: z.string().min(1, "RA é obrigatório"),
-  oldPassword: z.string().min(6, "Senha atual é obrigatória"),
+  oldPassword: z.string().min(6, "Senha atual é obrigatória").optional(),
   newPassword: z.string().min(6, "Nova senha é obrigatória"),
 });
 
@@ -25,13 +25,12 @@ export const passwordReset = async (req: FastifyRequest, res: FastifyReply) => {
 
   try {
     const parsed = PasswordResetSchema.parse(req.body);
-    const { ra, oldPassword, newPassword } = parsed;
+    const { ra, newPassword } = parsed;
 
     const user = await prisma.usuario.findUnique({
       where: { ra },
       select: {
         id: true,
-        senhaHash: true,
         ativo: true,
         deveRedefinirSenha: true,
       },
@@ -45,17 +44,17 @@ export const passwordReset = async (req: FastifyRequest, res: FastifyReply) => {
       return res.code(403).send({ error: "Usuário inativo" });
     }
 
-    const senhaCorreta = await verifyPassword(user.senhaHash, oldPassword);
-    if (!senhaCorreta) {
-      return res.code(401).send({ error: "Senha atual incorreta" });
+    if (!user.deveRedefinirSenha) {
+      return res.code(400).send({ error: "Usuário não está em processo de redefinição de senha" });
     }
 
     const novaHash = await hashPassword(newPassword);
+
     await prisma.usuario.update({
       where: { id: user.id },
       data: {
         senhaHash: novaHash,
-        deveRedefinirSenha: false, // ✅ desativa o reset obrigatório
+        deveRedefinirSenha: false,
       },
     });
 

@@ -3,6 +3,7 @@ import { login, refresh, logout, me, register, getUser, passwordReset } from "./
 import { authenticate } from "../../middlewares/auth.middleware";
 import { buildRouteValidator, zEmail, zStringTrim, zPapelOptional } from "../../utils/zod-helpers";
 import { z } from "zod";
+import { PasswordResetSchema } from "../../validators/auth"; 
 
 const zRA = zStringTrim.min(3).max(32).regex(/^[A-Za-z0-9._-]+$/, "RA inválido");
 
@@ -61,14 +62,9 @@ export default function authRoutes(app: FastifyInstance): void {
   app.post("/logout", { preHandler: preBody(RefreshSchema) }, logout);
   app.post("/register", { preHandler: preBody(RegisterSchema) }, register);
 
-  // 🔽 Nova rota de redefinição de senha
-  app.post("/password_reset", {
-    preHandler: preBody(z.object({
-      ra: z.string().min(1),
-      oldPassword: z.string().min(6),
-      newPassword: z.string().min(6),
-    }))
-  }, passwordReset);
+app.post("/password_reset", {
+  preHandler: preBody(PasswordResetSchema)
+}, passwordReset);
 
   app.get("/me", { preHandler: authenticate }, me);
   app.get("/usuarios", { preHandler: [authenticate, preQuery(GetUserQuerySchema)] }, getUser);

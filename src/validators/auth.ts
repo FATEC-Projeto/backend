@@ -38,3 +38,8 @@ export const ResetPasswordSchema = z.object({
     novaSenha: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
   }),
 });
+
+export const PasswordResetSchema = z.object({
+  ra: z.string().min(1, "RA é obrigatório"),
+  newPassword: z.string().min(8, "A nova senha deve ter no mínimo 8 caracteres"),
+});
