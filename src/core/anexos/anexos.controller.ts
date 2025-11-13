@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import fs from 'fs';
+import fs from 'node:fs';
 import { buildRouteValidator } from '../../utils/zod-helpers';
 import { ListAnexosSchema, ParamsWithTicketIdSchema, UploadAnexoSchema, DownloadAnexoSchema } from './anexos.types';
 import { listAnexosByTicketId, createAnexo, getAnexoForDownload } from './anexos.service';

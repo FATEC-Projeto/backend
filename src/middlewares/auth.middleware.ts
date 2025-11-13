@@ -23,7 +23,7 @@ export async function authenticate(req: FastifyRequest, res: FastifyReply) {
   }
 
   try {
-    const payload = verifyAccessToken(token); // { sub, email, role }
+    const payload = verifyAccessToken(token); 
     req.user = payload;
   } catch (err: any) {
     return res.code(401).send({ error: "Não autorizado", details: err?.message });

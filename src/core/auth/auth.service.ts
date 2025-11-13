@@ -222,7 +222,7 @@ export const refreshService = async (refreshToken: string) => {
   }
 
   const user = session.usuario;
-  if (!user || !user.ativo) throw new Error("Usuário inativo");
+  if (!user?.ativo) throw new Error("Usuário inativo");
 
   // Novo access
   const accessToken = generateAccessToken({

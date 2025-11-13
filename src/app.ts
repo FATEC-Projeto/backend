@@ -3,8 +3,8 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
-import path from "path";
-import fs from "fs";
+import path from "node:path";
+import fs from "node:fs";
 
 import prismaPlugin from "./plugins/prisma";
 import authRoutes from "./core/auth/auth.routes";

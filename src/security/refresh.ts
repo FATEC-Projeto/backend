@@ -1,6 +1,6 @@
 // src/security/refresh.ts
 import { prisma } from "../lib/prisma";
-import { randomBytes } from "crypto";
+import { randomBytes } from "node:crypto";
 import argon2 from "argon2";
 
 export const REFRESH_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 dias

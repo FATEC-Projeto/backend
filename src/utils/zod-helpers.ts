@@ -15,9 +15,16 @@ export const zUserAgent = zStringTrim.max(512).optional();
 export const zIP = zStringTrim.max(64).optional();
 
 /** Boolean que aceita "true"/"false" (querystring) */
+const parseBooleanish = (v: unknown): boolean | undefined => {
+  if (typeof v === "boolean") return v;
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return undefined;
+};
+
 export const zBooleanish = z
   .union([z.boolean(), zStringTrim.transform((s) => s.toLowerCase())])
-  .transform((v) => (typeof v === "boolean" ? v : v === "true" ? true : v === "false" ? false : undefined))
+  .transform(parseBooleanish)
   .optional();
 
 /** Datas ISO (string) -> Date */

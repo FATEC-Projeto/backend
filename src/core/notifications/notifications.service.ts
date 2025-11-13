@@ -6,7 +6,7 @@ type Ctx = PrismaClient;
 function parseISO(v?: string) {
   if (!v) return undefined;
   const d = new Date(v);
-  return isNaN(d.getTime()) ? undefined : d;
+  return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
 const buildWhere = (userId: string, q: NotificationsListQuery) => {
