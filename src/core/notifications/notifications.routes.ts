@@ -9,13 +9,12 @@ import {
 } from "./notifications.controller";
 
 export async function notificationsRoutes(app: FastifyInstance) {
-  // 🔐 Todas as rotas de notificações exigem autenticação
   app.addHook("preHandler", app.authenticate as any);
 
   app.get("/", list);
   app.post("/read-all", readAll);
   app.post("/test", createTest);
-  app.patch("/:id/lida", readOne); // marcar notificação como lida
+  app.patch("/:id/lida", readOne);  // A rota para marcar como lida deve ser PATCH
   app.post("/:id/archive", archive);
   app.post("/:id/unarchive", unarchive);
 }
