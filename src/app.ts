@@ -53,7 +53,7 @@ export async function buildApp() {
   await app.register(prismaPlugin);
   await app.register(cookiePlugin);
   await app.register(authVerify);
-  await app.register(authorizePlugin)
+  await app.register(authorizePlugin);
   await app.register(swaggerPlugin);
   await app.register(websocket);
 
