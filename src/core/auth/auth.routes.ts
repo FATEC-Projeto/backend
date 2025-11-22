@@ -1,6 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { login, refresh, logout, me, register, getUser, firstAccess } from "./auth.controller";
-import { authenticate } from "../../middlewares/auth.middleware";
 import { buildRouteValidator, zEmail, zStringTrim, zPapelOptional } from "../../utils/zod-helpers";
 import { z } from "zod";
 import { FirstAccessSchema } from "../../validators/auth";
