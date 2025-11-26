@@ -146,11 +146,9 @@ model Usuario {
   lockedUntil        DateTime?
   lastFailedAttempt  DateTime?
 
-  // Flags de senha / primeiro acesso
   precisaTrocarSenha Boolean   @default(false)
   passwordUpdatedAt  DateTime?
 
-  // Relações
   organizacao         Organizacao?             @relation(fields: [organizacaoId], references: [id])
 
   chamadosCriados     Chamado[]                @relation("ChamadosCriados")
@@ -165,11 +163,14 @@ model Usuario {
   loginTentativas     LoginTentativa[]         @relation("LoginTentativasDoUsuario")
   notificacoes        Notificacao[]            @relation("NotificacoesDoUsuario")
 
+  avaliacoes          AvaliacaoChamado[]       @relation("AvaliacaoDoUsuario")
+
   @@index([emailPessoal])
   @@index([organizacaoId])
   @@index([cursoSigla])
   @@map("usuarios")
 }
+
 
 
 model Sessao {
@@ -293,6 +294,8 @@ model Chamado {
   tags         ChamadoTag[]
   notificacoes Notificacao[]            @relation("NotificacoesDoChamado")
 
+  avaliacoes   AvaliacaoChamado[]       @relation("AvaliacaoDoChamado")
+
   @@index([status, nivel])
   @@index([criadoEm])
   @@index([clienteId])
@@ -301,6 +304,7 @@ model Chamado {
   @@index([organizacaoId])
   @@map("chamados")
 }
+
 
 model HistoricoStatusChamado {
   id           String         @id @default(cuid())
@@ -484,3 +488,20 @@ model Notificacao {
   @@index([tipo, canal])
   @@map("notificacoes")
 }
+
+model AvaliacaoChamado {
+  id         String   @id @default(cuid())
+  chamadoId  String
+  usuarioId  String
+  nota       Int
+  comentario String?
+  criadoEm   DateTime @default(now())
+
+  chamado Chamado @relation("AvaliacaoDoChamado", fields: [chamadoId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation("AvaliacaoDoUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([chamadoId])
+  @@index([usuarioId])
+  @@map("avaliacoes_chamados")
+}
+
