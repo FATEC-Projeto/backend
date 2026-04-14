@@ -1,0 +1,10 @@
+# Use the official Adminer image as the base
+FROM adminer:4
+
+# Set the environment variables
+ENV ADMINER_DEFAULT_DB_DRIVER=mysql
+ENV ADMINER_DEFAULT_SERVER=db
+ENV ADMINER_DEFAULT_DB_NAME=workflow_fatec
+
+# Inform Docker that the container listens on port 8080 at runtime
+EXPOSE 8080

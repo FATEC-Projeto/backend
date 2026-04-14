@@ -1,0 +1,12 @@
+FROM mysql:8.4.8
+
+ENV MYSQL_DATABASE=wf-db
+ENV MYSQL_ROOT_HOST="%"
+ENV TZ=America/Sao_Paulo
+
+EXPOSE 3306
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=10 \
+  CMD mysqladmin ping -h 127.0.0.1 -proot || exit 1
+
+CMD ["mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]

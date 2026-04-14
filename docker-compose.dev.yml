@@ -24,6 +24,11 @@ services:
       dockerfile: Dockerfile.backend
     ports:
       - "3333:3333"
+  adminer:
+    build:
+      context: .
+      dockerfile: Dockerfile.adminer
+
 volumes:
   db_data:
     driver: local
