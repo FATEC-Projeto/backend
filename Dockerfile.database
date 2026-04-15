@@ -9,4 +9,4 @@ EXPOSE 3306
 HEALTHCHECK --interval=10s --timeout=5s --retries=10 \
   CMD mysqladmin ping -h 127.0.0.1 -proot || exit 1
 
-CMD ["mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+CMD ["mysqld", "--mysql-native-password=ON", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
