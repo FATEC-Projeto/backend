@@ -1,6 +1,17 @@
 // src/utils/zod-helpers.ts
 import { z, ZodTypeAny } from "zod";
 
+const normalizeBooleanish = (value: boolean | string | undefined): boolean | undefined => {
+  if (typeof value === "boolean") return value;
+  if (!value) return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+
+  return undefined;
+};
+
 /** Strings comuns */
 export const zStringTrim = z.string().trim();
 export const zEmail = zStringTrim.email("E-mail inválido");
@@ -16,8 +27,8 @@ export const zIP = zStringTrim.max(64).optional();
 
 /** Boolean que aceita "true"/"false" (querystring) */
 export const zBooleanish = z
-  .union([z.boolean(), zStringTrim.transform((s) => s.toLowerCase())])
-  .transform((v) => (typeof v === "boolean" ? v : v === "true" ? true : v === "false" ? false : undefined))
+  .union([z.boolean(), zStringTrim])
+  .transform((value) => normalizeBooleanish(value))
   .optional();
 
 /** Datas ISO (string) -> Date */

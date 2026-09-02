@@ -30,11 +30,23 @@ import { verifyAccessToken } from "./utils/jwt";
 import { scheduleCleanupAnexos } from "./jobs/cleanupAnexos";
 
 /* ====== Configuração de uploads ====== */
-const UPLOADS_DIR = path.resolve(
-  env.STORAGE_DRIVER === "local" ? env.LOCAL_STORAGE_DIR : "./uploads",
-);
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+function ensureUploadsDirectory() {
+  const directory = path.resolve(
+    env.STORAGE_DRIVER === "local" ? env.LOCAL_STORAGE_DIR : "./uploads",
+  );
+
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, { recursive: true });
+  }
+
+  return directory;
+}
+
+const UPLOADS_DIR = ensureUploadsDirectory();
+
+function isOriginAllowed(origin: string | undefined, allowedOrigins: string[]) {
+  if (!origin) return true;
+  return allowedOrigins.includes(origin);
 }
 
 export async function buildApp() {
@@ -63,8 +75,7 @@ export async function buildApp() {
 
   await app.register(cors, {
     origin: (origin, cb) => {
-      if (!origin) return cb(null, true);
-      if (allowedOrigins.includes(origin)) return cb(null, true);
+      if (isOriginAllowed(origin, allowedOrigins)) return cb(null, true);
       app.log.warn({ origin }, "Origin bloqueado pelo CORS");
       return cb(new Error("Not allowed by CORS"), false);
     },
