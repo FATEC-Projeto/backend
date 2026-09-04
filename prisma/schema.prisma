@@ -32,6 +32,11 @@ enum StatusChamado {
   ENCERRADO
 }
 
+enum StatusSugestao {
+  NAO_RESPONDIDO
+  RESPONDIDO
+}
+
 enum PrioridadeChamado {
   BAIXA
   MEDIA
@@ -184,6 +189,8 @@ model Usuario {
   usuarioSetores     UsuarioSetor[]
   loginTentativas    LoginTentativa[]         @relation("LoginTentativasDoUsuario")
   notificacoes       Notificacao[]            @relation("NotificacoesDoUsuario")
+  sugestoes          Sugestao[]
+  sugestoesRespondidas Sugestao[]             @relation("SugestoesRespondidas")
 
   @@index([emailPessoal])
   @@index([organizacaoId])
@@ -519,4 +526,25 @@ model ComunicacaoTemplate {
   atualizadoEm DateTime @updatedAt
 
   @@map("comunicacao_templates")
+}
+
+model Sugestao {
+  id           String         @id @default(cuid())
+  usuarioId    String
+  emailContato String
+  conteudo     String         @db.Text
+  status       StatusSugestao @default(NAO_RESPONDIDO)
+  resposta     String?        @db.VarChar(1000)
+  criadoEm     DateTime       @default(now())
+
+  respondidoPorId String?
+  respondidoEm    DateTime?
+
+  usuario      Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  respondidoPor Usuario? @relation("SugestoesRespondidas", fields: [respondidoPorId], references: [id])
+
+  @@index([usuarioId])
+  @@index([criadoEm])
+  @@index([status])
+  @@map("sugestoes")
 }

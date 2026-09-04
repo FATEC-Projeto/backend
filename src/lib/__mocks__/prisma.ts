@@ -104,7 +104,16 @@ function buildMock() {
       findMany: vi.fn(),
       upsert: vi.fn(),
     },
+    comunicacaoTemplate: {
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+    },
+    sugestao: {
+      create: vi.fn(),
+    },
   }
+  // $transaction passes the mock itself as the tx client so inner calls work
+  
   // $transaction passes the mock itself as the tx client so inner calls work
   mock.$transaction = vi.fn().mockImplementation((fnOrArr: any) =>
     typeof fnOrArr === 'function' ? fnOrArr(mock) : Promise.all(fnOrArr),

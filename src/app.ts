@@ -26,6 +26,7 @@ import { usuarioSetorRoutes } from "./core/usuario-setor/usuarioSetor.routes";
 import { comunicacoesRoutes } from "./core/comunicacoes/comunicacoes.routes";
 import { notificationsRoutes } from "./core/notifications/notifications.routes";
 import { anexoRoutes } from "./core/anexos/anexos.routes";
+import { sugestoesRoutes } from "./core/sugestoes/sugestoes.routes";
 import { verifyAccessToken } from "./utils/jwt";
 import { scheduleCleanupAnexos } from "./jobs/cleanupAnexos";
 
@@ -117,6 +118,7 @@ export async function buildApp() {
   app.register(comunicacoesRoutes, { prefix: "/admin" });
   app.register(notificationsRoutes, { prefix: "/notifications" });
   app.register(anexoRoutes, { prefix: "/" });
+  app.register(sugestoesRoutes, { prefix: "/sugestoes" });
   app.register(auditoriaRoutes);
 
   // ---------------------------------------------------------
